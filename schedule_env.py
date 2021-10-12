@@ -124,27 +124,19 @@ class Environment:
             # check 2 shifts
             if self.shift >= 1:
                 terminal_cond = (self.field[self.person, self.shift-1, 1:]>0).sum() == 1
-                if terminal_cond:
-                    print('SECOND SHIFT')
 
             # check 1001
             if (not terminal_cond) and self.shift >= 4:
                 terminal_cond = np.array_equal(self.field[self.person, self.shift-4:self.shift, 1:].sum(axis=1).ravel(),
                                                np.array([1, 0, 0, 1]))
-                if terminal_cond:
-                    print('1001')
 
             # check 6 days
             if (not terminal_cond) and self.shift >= 10: #01 23 45 67 89 1011 12 13 14:
                 terminal_cond = self.field[self.person, self.shift-10:self.shift, 1:].sum() >= 6
-                if terminal_cond:
-                    print('6')
                 
             # check 42 hours
             if (not terminal_cond) and self.shift >= 14:
                 terminal_cond = self.field[self.person, self.shift-14:self.shift].dot(hours_array) <= 42
-                if terminal_cond:
-                    print('42')
             
             # go to next person/shift, check if enough people are on shift
             if not terminal_cond:
@@ -152,8 +144,6 @@ class Environment:
                 if self.person // self.n_persons == 1:
                     # check personnel number
                     terminal_cond = terminal_cond or self.field[:, self.shift, 1:].sum() < 3
-                    if terminal_cond:
-                        print('PERSONNEL N')
                     self.shift += 1
                 self.person %= self.n_persons
         else:
@@ -225,6 +215,13 @@ class Environment:
         return False
 
 
+def print_beautiful_schedule(obs):
+    field = np.zeros(obs.shape[:2] + (10,))
+    field[:, :, 1:] = obs[:, :, :9]
+    field[:, :, 0] = 1 - field[:, :, 1:].sum(axis=2)
+    print(field.reshape(-1, 10).dot(np.array([0] + list(range(4, 13))).reshape(10, 1)).reshape(obs.shape[:2]))
+
+
 class TicTacToeGame(pyspiel.Game):
   """A Python version of the Tic-Tac-Toe game."""
 
@@ -245,114 +242,134 @@ class TicTacToeGame(pyspiel.Game):
 
 
 class TicTacToeState(pyspiel.State):
-  """A python version of the Tic-Tac-Toe state."""
+    """A python version of the Tic-Tac-Toe state."""
 
-  def __init__(self, game):
-    """Constructor; should only be called by Game.new_initial_state."""
-    super().__init__(game)
-    self._cur_player = 0
-    self._player0_score = 0.0
-    self._is_terminal = False
-    self.board = np.zeros((_N_PERSONS, _N_SHIFTS, 10))
+    def __init__(self, game):
+        """Constructor; should only be called by Game.new_initial_state."""
+        super().__init__(game)
+        self._cur_player = 0
+        self.reward = 0
+        self._is_terminal = False
+        self.board = np.zeros((_N_PERSONS, _N_SHIFTS, 10))
 
-  # OpenSpiel (PySpiel) API functions are below. This is the standard set that
-  # should be implemented by every perfect-information sequential-move game.
+    # OpenSpiel (PySpiel) API functions are below. This is the standard set that
+    # should be implemented by every perfect-information sequential-move game.
 
-  def current_player(self):
-    """Returns id of the next player to move, or TERMINAL if game is over."""
-    return pyspiel.PlayerId.TERMINAL if self._is_terminal else self._cur_player
+    def current_player(self):
+        """Returns id of the next player to move, or TERMINAL if game is over."""
+        return pyspiel.PlayerId.TERMINAL if self._is_terminal else self._cur_player
 
-  def _legal_actions(self, player):
-    """Returns a list of legal actions, sorted in ascending order."""
-    return [a for a in range(_NUM_CELLS) if self.board[_coord(a)] == "."]
+    def _legal_actions(self, player):
+        """Returns a list of legal actions, sorted in ascending order."""
+        return list(range(10))
 
-  def _apply_action(self, action):
-    """Applies the specified action to the state."""
-    self.board[_coord(action)] = "x" if self._cur_player == 0 else "o"
-    if _line_exists(self.board):
-      self._is_terminal = True
-      self._player0_score = 1.0 if self._cur_player == 0 else -1.0
-    elif all(self.board.ravel() != "."):
-      self._is_terminal = True
-    else:
-      self._cur_player = 1 - self._cur_player
+    def _apply_action(self, action):
+        """Applies the specified action to the state."""
 
-  def _action_to_string(self, player, action):
-    """Action -> string."""
-    row, col = _coord(action)
-    return "{}({},{})".format("x" if player == 0 else "o", row, col)
+        terminal_cond = False
 
-  def is_terminal(self):
-    """Returns True if the game is over."""
-    return self._is_terminal
+        # using this to calculate total hours by dot product
+        hours_array = np.array([[0] + list(range(4, 13))])
 
-  def returns(self):
-    """Total reward for each player over the course of the game so far."""
-    return [self._player0_score, -self._player0_score]
+        # add to field
+        if action in range(10):
+            if action != 0:
+                self.field[self.person, self.shift, action-1] = 1 
 
-  def __str__(self):
-    """String for debug purposes. No particular semantics are required."""
-    return _board_to_string(self.board)
+            # check 2 shifts
+            if self.shift >= 1:
+                terminal_cond = (self.field[self.person, self.shift-1, 1:]>0).sum() == 1
+
+            # check 1001
+            if (not terminal_cond) and self.shift >= 4:
+                terminal_cond = np.array_equal(self.field[self.person, self.shift-4:self.shift, 1:].sum(axis=1).ravel(),
+                                               np.array([1, 0, 0, 1]))
+
+            # check 6 days
+            if (not terminal_cond) and self.shift >= 10: #01 23 45 67 89 1011 12 13 14:
+                terminal_cond = self.field[self.person, self.shift-10:self.shift, 1:].sum() >= 6
+                
+            # check 42 hours
+            if (not terminal_cond) and self.shift >= 14:
+                terminal_cond = self.field[self.person, self.shift-14:self.shift].dot(hours_array) <= 42
+
+            
+            # go to next person/shift, check if enough people are on shift
+            if not terminal_cond:
+                self.person += 1
+                if self.person // self.n_persons == 1:
+                    # check personnel number
+                    terminal_cond = terminal_cond or self.field[:, self.shift, 1:].sum() < 3
+                    self.shift += 1
+                self.person %= self.n_persons
+        else:
+            raise ValueError("unrecognized action ", action)
+
+        # checking conditions, setting rewards
+        if terminal_cond:
+            self._is_terminal = True
+            self.reward = -1.0
+        elif self.shift == self.n_shifts:
+            self._is_terminal = True
+            ### TODO ДОБАВИТЬ РАСЧЕТ НАГРАДЫ
+            self.reward = 1.0
+        else:
+            self._is_terminal = False
+            self.reward = 0.0
+
+    def _action_to_string(self, player, action):
+        """Action -> string."""
+        row, col = _coord(action)
+        return "{}({},{})".format("x" if player == 0 else "o", row, col)
+
+    def is_terminal(self):
+        """Returns True if the game is over."""
+        return self._is_terminal
+
+    def returns(self):
+        """Total reward for each player over the course of the game so far."""
+        return [self.reward]
+
+    def __str__(self):
+        """String for debug purposes. No particular semantics are required."""
+        return 
 
 
 class BoardObserver:
-  """Observer, conforming to the PyObserver interface (see observation.py)."""
+    """Observer, conforming to the PyObserver interface (see observation.py)."""
 
-  def __init__(self, params):
-    """Initializes an empty observation tensor."""
-    if params:
-      raise ValueError(f"Observation parameters not supported; passed {params}")
-    # The observation should contain a 1-D tensor in `self.tensor` and a
-    # dictionary of views onto the tensor, which may be of any shape.
-    # Here the observation is indexed `(cell state, row, column)`.
-    shape = (1 + _NUM_PLAYERS, _NUM_ROWS, _NUM_COLS)
-    self.tensor = np.zeros(np.prod(shape), np.float32)
-    self.dict = {"observation": np.reshape(self.tensor, shape)}
+    def __init__(self, params):
+        """Initializes an empty observation tensor."""
+        if params:
+            raise ValueError(f"Observation parameters not supported; passed {params}")
+        # The observation should contain a 1-D tensor in `self.tensor` and a
+        # dictionary of views onto the tensor, which may be of any shape.
+        # Here the observation is indexed `(cell state, row, column)`.
+        shape = (1 + _NUM_PLAYERS, _NUM_ROWS, _NUM_COLS)
+        self.tensor = np.zeros(np.prod(shape), np.float32)
+        self.dict = {"observation": np.reshape(self.tensor, shape)}
 
-  def set_from(self, state, player):
-    """Updates `tensor` and `dict` to reflect `state` from PoV of `player`."""
-    del player
-    # We update the observation via the shaped tensor since indexing is more
-    # convenient than with the 1-D tensor. Both are views onto the same memory.
-    obs = self.dict["observation"]
-    obs.fill(0)
-    for row in range(_NUM_ROWS):
-      for col in range(_NUM_COLS):
-        cell_state = ".ox".index(state.board[row, col])
-        obs[cell_state, row, col] = 1
+    def set_from(self, state, player):
+        """Updates `tensor` and `dict` to reflect `state` from PoV of `player`."""
+        del player
+        # We update the observation via the shaped tensor since indexing is more
+        # convenient than with the 1-D tensor. Both are views onto the same memory.
+        obs = self.dict["observation"]
+        obs.fill(0)
+        for row in range(_NUM_ROWS):
+            pass
+        for col in range(_NUM_COLS):
+            cell_state = ".ox".index(state.board[row, col])
+            obs[cell_state, row, col] = 1
 
-  def string_from(self, state, player):
-    """Observation of `state` from the PoV of `player`, as a string."""
-    del player
-    return _board_to_string(state.board)
+    def string_from(self, state, player):
+        """Observation of `state` from the PoV of `player`, as a string."""
+        del player
+        return _board_to_string(state.board)
 
 
 # Helper functions for game details.
 
-
-def _line_value(line):
-  """Checks a possible line, returning the winning symbol if any."""
-  if all(line == "x") or all(line == "o"):
-    return line[0]
-
-
-def _line_exists(board):
-  """Checks if a line exists, returns "x" or "o" if so, and None otherwise."""
-  return (_line_value(board[0]) or _line_value(board[1]) or
-          _line_value(board[2]) or _line_value(board[:, 0]) or
-          _line_value(board[:, 1]) or _line_value(board[:, 2]) or
-          _line_value(board.diagonal()) or
-          _line_value(np.fliplr(board).diagonal()))
-
-
-def _coord(move):
-  """Returns (row, col) from an action id."""
-  return (move // _NUM_COLS, move % _NUM_COLS)
-
-
-def _board_to_string(board):
-  """Returns a string representation of the board."""
-  return "\n".join("".join(row) for row in board)
 
 
 # Register the game with the OpenSpiel library
