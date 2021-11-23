@@ -40,7 +40,7 @@ torch.manual_seed(42)
 ## 3) rework action taking process
 
 N_PERSONS = 4
-INTERMEDIATE_SIZE = 256
+INTERMEDIATE_SIZE = 64
 
 # wrapper for cython environment
 class ScheduleGym(gym.Env):
@@ -49,7 +49,7 @@ class ScheduleGym(gym.Env):
         n_persons=4; n_shifts=42
         self.action_space = spaces.Discrete(15, )
         self.observation_space = spaces.Dict({
-            "obs": spaces.Box(low=-100, high=100, shape=(n_persons, 52), dtype=np.float64),
+            "obs": spaces.Box(low=-100, high=100, shape=(n_persons, 52 ), dtype=np.float64),
             "action_mask": spaces.Box(low=0, high=1, shape=(self.action_space.n, ), dtype=np.float32),
             "person": spaces.Box(low=0, high=1, shape=(n_persons, ), dtype=np.float32)
         })
@@ -85,6 +85,8 @@ class ScheduleGym(gym.Env):
         observation = env.get_observation(**self.env_state).ravel()
         human = observation[-4:]
         observation = observation[:-4].reshape(4, -1)
+        # observation = observation.ravel()
+        # observation = np.concatenate([observation, self.target_hours.reshape(-1, )-20])
         observation = np.concatenate([observation, np.repeat(self.target_hours.reshape(1, -1) - 20, 4, axis=0)], axis=1)
         try:
             action_mask = np.array(env.get_possible_moves(**self.env_state))
@@ -99,6 +101,8 @@ class ScheduleGym(gym.Env):
         observation = env.get_observation(**self.env_state).ravel()
         human = observation[-4:]
         observation = observation[:-4].reshape(4, -1)
+        # observation = observation.ravel()
+        # observation = np.concatenate([observation, self.target_hours.reshape(-1, )-20])
         observation = np.concatenate([observation, np.repeat(self.target_hours.reshape(1, -1) - 20, 4, axis=0)], axis=1)
         try:
             action_mask = np.array(env.get_possible_moves(**self.env_state))
@@ -130,6 +134,8 @@ class ScheduleGym(gym.Env):
         observation = env.get_observation(**self.env_state).ravel()
         human = observation[-4:]
         observation = observation[:-4].reshape(4, -1)
+        # observation = observation.ravel()
+        # observation = np.concatenate([observation, self.target_hours.reshape(-1, )-20])
         observation = np.concatenate([observation, np.repeat(self.target_hours.reshape(1, -1) - 20, 4, axis=0)], axis=1)
         if self.env_state['shift'] % 2 == 1:
             done = done or (np.array(self.env_state['hours'])[:, self.env_state['shift']-1] > 0).sum() < 1
@@ -165,7 +171,7 @@ class TransfModel(TorchModelV2, nn.Module):
                 self.hours_processing = nn.Sequential(
                     nn.Linear(in_features=52, out_features=INTERMEDIATE_SIZE),
                     nn.ReLU(),
-                    nn.TransformerEncoder(nn.TransformerEncoderLayer(INTERMEDIATE_SIZE, 4, INTERMEDIATE_SIZE, batch_first=True), 1),
+                    nn.TransformerEncoder(nn.TransformerEncoderLayer(INTERMEDIATE_SIZE, 2, INTERMEDIATE_SIZE, batch_first=True), 1),
                 )
 
             def forward(self, x):
@@ -207,16 +213,15 @@ class TransfModel(TorchModelV2, nn.Module):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num-workers", default=7, type=int)
+    parser.add_argument("--num-workers", default=0, type=int)
     parser.add_argument("--training-iteration", default=100000, type=int)
     parser.add_argument("--ray-num-cpus", default=8, type=int)
     args = parser.parse_args()
     ray.init(num_cpus=args.ray_num_cpus)
 
-    gpu_count = 1.0 if torch.cuda.is_available() else 0.0
-    num_gpus = 0.0001 if gpu_count == 1.0 else 0 # Driver GPU
-    num_gpus_per_worker = (gpu_count - num_gpus) / args.num_workers
-    
+    # gpu_count = 1.0 if torch.cuda.is_available() else 0.0
+    # num_gpus = 0.0001 if gpu_count == 1.0 else 0 # Driver GPU
+    # num_gpus_per_worker = (gpu_count - num_gpus) / args.num_workers
 
     # register_env('schedule_env')
 
@@ -226,17 +231,17 @@ if __name__ == "__main__":
             "env": ScheduleGym,
             "framework": "torch",
             "num_workers": args.num_workers,
-            "env_config": {"n_persons": 4, "n_shifts": 42},
+            "env_config": {"n_persons": N_PERSONS, "n_shifts": 42},
             "rollout_fragment_length": 50,
-            "train_batch_size": 1024,
+            "train_batch_size": 200,
             "sgd_minibatch_size": 64,
-            "num_gpus": num_gpus,
-            "num_gpus_per_worker": num_gpus_per_worker,
+            # "num_gpus": num_gpus,
+            # "num_gpus_per_worker": num_gpus_per_worker,
             "lr": 1e-4,
             "num_sgd_iter": 1,
             "mcts_config": {
                 "puct_coefficient": 1.5,
-                "num_simulations": 300,
+                "num_simulations": 200,
                 "temperature": 1.0,
                 "dirichlet_epsilon": 0.20,
                 "dirichlet_noise": 0.03,
@@ -248,6 +253,7 @@ if __name__ == "__main__":
             },
             "model": {
                 "custom_model": "transformer_model",
+                "vf_share_layers": True,
             },
         }
 
@@ -257,9 +263,18 @@ if __name__ == "__main__":
         max_failures=0,
         config=config,
         checkpoint_at_end=True,
-        checkpoint_freq=100
+        checkpoint_freq=10
     )
 
+    config["mcts_config"] = {
+        "puct_coefficient": 1.5,
+        "num_simulations": 200,
+        "temperature": 1.0,
+        "dirichlet_epsilon": 0.20,
+        "dirichlet_noise": 0.03,
+        "argmax_tree_policy": True,
+        "add_dirichlet_noise": False,
+    }
     last_checkpoint = analysis.get_last_checkpoint()
     agent = AlphaZeroTrainer(config=config, env=ScheduleGym)
     agent.restore(last_checkpoint)
