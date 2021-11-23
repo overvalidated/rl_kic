@@ -213,6 +213,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     ray.init(num_cpus=args.ray_num_cpus)
 
+    gpu_count = 1.0 if torch.cuda.is_available() else 0.0
+    num_gpus = 0.0001 if gpu_count == 1.0 else 0 # Driver GPU
+    num_gpus_per_worker = (gpu_count - num_gpus) / args.num_workers
+    
+
     # register_env('schedule_env')
 
     ModelCatalog.register_custom_model("transformer_model", TransfModel)
@@ -225,6 +230,8 @@ if __name__ == "__main__":
             "rollout_fragment_length": 50,
             "train_batch_size": 1024,
             "sgd_minibatch_size": 64,
+            "num_gpus": num_gpus,
+            "num_gpus_per_worker": num_gpus_per_worker,
             "lr": 1e-4,
             "num_sgd_iter": 1,
             "mcts_config": {
