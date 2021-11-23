@@ -220,8 +220,8 @@ if __name__ == "__main__":
     ray.init(num_cpus=args.ray_num_cpus)
 
     gpu_count = 1.0 if torch.cuda.is_available() else 0.0
-    num_gpus = 0.0001 if gpu_count == 1.0 else 0 # Driver GPU
-    num_gpus_per_worker = (gpu_count - num_gpus) / max(1, args.num_workers)
+    num_gpus = 1.0
+    num_gpus_per_worker = 1.0
 
     # register_env('schedule_env')
 
