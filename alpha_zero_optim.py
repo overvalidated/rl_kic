@@ -214,14 +214,14 @@ class TransfModel(TorchModelV2, nn.Module):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num-workers", default=0, type=int)
-    parser.add_argument("--training-iteration", default=100000, type=int)
+    parser.add_argument("--training-iteration", default=30000, type=int)
     parser.add_argument("--ray-num-cpus", default=8, type=int)
     args = parser.parse_args()
     ray.init(num_cpus=args.ray_num_cpus)
 
     gpu_count = 1.0 if torch.cuda.is_available() else 0.0
-    num_gpus = 1.0
-    num_gpus_per_worker = 1.0
+    num_gpus = 0.0001 if gpu_count == 1.0 else 0 # Driver GPU
+    num_gpus_per_worker = (gpu_count - num_gpus) / max(1, args.num_workers)
 
     # register_env('schedule_env')
 
@@ -238,6 +238,7 @@ if __name__ == "__main__":
             "num_gpus": num_gpus,
             "num_gpus_per_worker": num_gpus_per_worker,
             "lr": 1e-4,
+            'local_dir': '/kaggle/working',
             "num_sgd_iter": 1,
             "mcts_config": {
                 "puct_coefficient": 1.5,
