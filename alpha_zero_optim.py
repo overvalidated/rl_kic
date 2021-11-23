@@ -238,7 +238,6 @@ if __name__ == "__main__":
             "num_gpus": num_gpus,
             "num_gpus_per_worker": num_gpus_per_worker,
             "lr": 1e-4,
-            'local_dir': '/kaggle/working',
             "num_sgd_iter": 1,
             "mcts_config": {
                 "puct_coefficient": 1.5,
@@ -264,7 +263,8 @@ if __name__ == "__main__":
         max_failures=0,
         config=config,
         checkpoint_at_end=True,
-        checkpoint_freq=10
+        checkpoint_freq=10,
+        local_dir='/kaggle/working'
     )
 
     config["mcts_config"] = {
