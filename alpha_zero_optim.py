@@ -31,8 +31,6 @@ from torch import nn
 
 from copy import deepcopy, copy
 
-from ppo_transformer import INTERMEDIATE_SIZE
-
 np.random.seed(42)
 torch.manual_seed(42)
 
