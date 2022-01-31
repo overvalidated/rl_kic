@@ -11,7 +11,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 
 import torchga
-from ScheduleEnv import ScheduleGym
+from schedule_env import ScheduleGym
 from imitation.algorithms.bc import BC
 from imitation.data import rollout
 
