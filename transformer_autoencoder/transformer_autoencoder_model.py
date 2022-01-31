@@ -12,6 +12,7 @@ import numpy as np
 
     нужно разделить 
 
+    
 """
 
 class TransformerAutoEncoder(nn.Module):
