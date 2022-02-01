@@ -10,9 +10,8 @@ import numpy as np
     нужно общее представление для всех людей
     также нужно представление каждого отдельного человека
 
-    нужно разделить 
+    можно попробовать их разделить но это сложно    
 
-    
 """
 
 class TransformerAutoEncoder(nn.Module):
@@ -21,3 +20,4 @@ class TransformerAutoEncoder(nn.Module):
 
     def forward(x):
         pass
+    
