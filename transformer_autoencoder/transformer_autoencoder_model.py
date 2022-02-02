@@ -11,7 +11,7 @@ import numpy as np
     также нужно представление каждого отдельного человека
 
     можно попробовать их разделить но это сложно    
-
+    
 """
 
 class TransformerAutoEncoder(nn.Module):
