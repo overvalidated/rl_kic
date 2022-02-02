@@ -1,6 +1,11 @@
 # wrapper for cython environment
 import gym
 from gym import spaces
+import env
+import numpy as np
+from copy import copy
+
+N_PERSONS = 16
 
 
 class ScheduleGym(gym.Env):
@@ -9,19 +14,21 @@ class ScheduleGym(gym.Env):
         self.training_iterations = 0
         self.action_space = spaces.Box(low=0.0, high=14, shape=(n_persons,))
         # self.action_space = spaces.MultiDiscrete([15, ] * n_persons)
-        self.observation_space = spaces.Box(low=-100.0, high=100.0, shape=(n_persons * n_shifts,))
+        self.observation_space = spaces.Box(
+            low=-100.0, high=100.0, shape=(n_persons * n_shifts,))
         self.env_state = env.new_state(
             n_persons=n_persons,
             n_shifts=n_shifts
         )
         self.target_hours = 4 * 8 + np.random.choice([-1, 0, 1], size=(
-        self.env_state['n_shifts'],))  # * np.random.choice([20,21,22,23,24,25], size=(self.env_state['n_shifts'], ))
+            self.env_state['n_shifts'],))  # * np.random.choice([20,21,22,23,24,25], size=(self.env_state['n_shifts'], ))
         self.target_hours[1::2] = 0
         # self.target_hours[10::14] = self.target_hours[10::14] // 2
         # self.target_hours[12::14] = self.target_hours[12::14] // 2
         self.env_state = env.prepare_env(**self.env_state, shift_prep=16)
         self.orig_state = copy(self.env_state)
-        self.target_hours[:16] = np.sum(self.env_state['hours'][:, :16], axis=0)
+        self.target_hours[:16] = np.sum(
+            self.env_state['hours'][:, :16], axis=0)
         self.target_hours[16:32] = self.target_hours[:16]
         self.target_hours[32:42] = self.target_hours[:10]
         self.acc_reward = 0
@@ -35,18 +42,20 @@ class ScheduleGym(gym.Env):
         )
         self.acc_reward = 0
         self.target_hours = 4 * 8 + np.random.choice([-1, 0, 1], size=(
-        self.env_state['n_shifts'],))  # * np.random.choice([20,21,22,23,24,25], size=(self.env_state['n_shifts'], ))
+            self.env_state['n_shifts'],))  # * np.random.choice([20,21,22,23,24,25], size=(self.env_state['n_shifts'], ))
         self.target_hours[1::2] = 0
         # self.target_hours[10::14] = self.target_hours[10::14] // 2
         # self.target_hours[12::14] = self.target_hours[12::14] // 2
         self.env_state = env.prepare_env(**self.env_state, shift_prep=16)
-        self.target_hours[:16] = np.sum(self.env_state['hours'][:, :16], axis=0)
+        self.target_hours[:16] = np.sum(
+            self.env_state['hours'][:, :16], axis=0)
         self.target_hours[16:32] = self.target_hours[:16]
         self.target_hours[32:42] = self.target_hours[:10]
         observation = np.array(env.get_observation(**self.env_state, shift_pos=self.env_state['shift']))[
-                      :-self.env_state['n_persons']]
+            :-self.env_state['n_persons']]
         upcoming_shifts = np.array(self.target_hours.reshape(-1, ))
-        upcoming_shifts[:-self.env_state['shift']] = upcoming_shifts[self.env_state['shift']:]
+        upcoming_shifts[:-self.env_state['shift']
+                        ] = upcoming_shifts[self.env_state['shift']:]
         upcoming_shifts[-self.env_state['shift']:] = 0
 
         observation = np.concatenate([
@@ -90,10 +99,12 @@ class ScheduleGym(gym.Env):
         # action = action.astype(np.int32)
 
         for i in range(self.env_state['n_persons']):
-            possible_moves = np.array(env.get_possible_moves(**self.env_state)).ravel()
+            possible_moves = np.array(
+                env.get_possible_moves(**self.env_state)).ravel()
             if possible_moves[int(action[i])] == 0:
                 done = True
-            self.env_state, reward_ = env.next_state(**self.env_state, action=action[i])
+            self.env_state, reward_ = env.next_state(
+                **self.env_state, action=action[i])
             workers += 1 if int(action[i]) != 0 else 0
             # if reward_ >= 0:
             #     reward_ = np.exp(min(1.23, 0.23 + (self.training_iterations * 8 / (10e6))) * -reward_)
@@ -105,7 +116,8 @@ class ScheduleGym(gym.Env):
             done = done or env.is_terminal(**self.env_state)
 
         done = done or workers < 1
-        hours = np.sum(np.array(self.env_state['hours'])[:, self.env_state['shift'] - 1])
+        hours = np.sum(np.array(self.env_state['hours'])[
+                       :, self.env_state['shift'] - 1])
 
         if workers >= 1:
             a_coef = 0.2  # min(0.3 + 10e6)), 1.3)
@@ -114,7 +126,8 @@ class ScheduleGym(gym.Env):
             #     reward = 1
             # else:
 
-            reward *= np.exp(-a_coef * np.abs(hours - self.target_hours[self.env_state['shift'] - 1]))
+            reward *= np.exp(-a_coef * np.abs(hours -
+                             self.target_hours[self.env_state['shift'] - 1]))
             for i in range(self.env_state['n_persons']):
                 reward *= np.exp(-0.03 * max(
                     np.sum(self.env_state['hours'][i, self.env_state['shift'] - 15:self.env_state['shift']]) - 44, 0))
@@ -123,24 +136,27 @@ class ScheduleGym(gym.Env):
             # awaited = np.ones((4, )) / 4
             # reward *= max(1-kl_div(real_dist, awaited).sum(), 1e-2)
         else:
-            reward = -min(violation_done, 1) / (i + 1) - 0.5 * (workers < 1)  # if np.random.random() < 0.3 else 0
+            reward = -min(violation_done, 1) / (i + 1) - 0.5 * \
+                (workers < 1)  # if np.random.random() < 0.3 else 0
             done = True
             # reward =
         # 3 дневных смены - не может быть ночи
         # reward = reward if self.env_state['shift'] % 2 == 1 else min(reward, 0)
 
         observation = np.array(env.get_observation(**self.env_state, shift_pos=self.env_state['shift']))[
-                      :-self.env_state['n_persons']]
+            :-self.env_state['n_persons']]
         upcoming_shifts = np.array(self.target_hours.reshape(-1, ))
-        upcoming_shifts[:-self.env_state['shift']] = upcoming_shifts[self.env_state['shift']:]
+        upcoming_shifts[:-self.env_state['shift']
+                        ] = upcoming_shifts[self.env_state['shift']:]
         upcoming_shifts[-self.env_state['shift']:] = 0
 
         observation = np.concatenate([
             observation,
             upcoming_shifts,
             np.sum(
-                env.get_observation(**self.env_state, shift_pos=self.env_state['shift'])[:-N_PERSONS].reshape(N_PERSONS,
-                                                                                                              -1),
+                env.get_observation(**self.env_state,
+                                    shift_pos=self.env_state['shift'])[:-N_PERSONS].reshape(N_PERSONS,
+                                                                                            -1),
                 axis=1)])
         # observation = np.concatenate([observation, prev_shifts])
         # observation = np.concatenate([observation, np.array([min(41,self.target_hours[self.env_state['shift']]])])
